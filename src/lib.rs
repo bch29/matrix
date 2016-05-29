@@ -44,18 +44,18 @@ impl<N, M, T> Matrix<N, M, T>
     // =============================================================================
 
     /// Get the runtime length of a row (or equivalently number of columns) in this matrix.
-    #[inline]
+    #[inline(always)]
     pub fn row_len(&self) -> usize {
         self.num_cols.as_nat()
     }
 
     /// Get the runtime length of a column (or equivalently number of rows) in this matrix.
-    #[inline]
+    #[inline(always)]
     pub fn col_len(&self) -> usize {
         self.num_rows.as_nat()
     }
 
-    #[inline]
+    #[inline(always)]
     fn row_col_index(&self, row: usize, col: usize) -> usize {
         col + self.row_len() * row
     }
@@ -64,13 +64,22 @@ impl<N, M, T> Matrix<N, M, T>
     ///
     /// # Panics
     /// When the row or column is out of bounds.
-    #[inline]
+    #[inline(always)]
     pub fn get(&self, row: usize, col: usize) -> &T {
         assert!(col < self.num_cols.as_nat());
         assert!(row < self.num_rows.as_nat());
         unsafe {
-            self.data.get_unchecked(self.row_col_index(row, col))
+            self.get_unchecked(row, col)
         }
+    }
+
+    /// Gets a reference to the value at the given row and column.
+    ///
+    /// # Safety
+    /// The row and column must be in bounds.
+    #[inline(always)]
+    pub unsafe fn get_unchecked(&self, row: usize, col: usize) -> &T {
+        self.data.get_unchecked(self.row_col_index(row, col))
     }
 
     /// Gets a mutable reference to the value at the given row and column.
@@ -452,6 +461,11 @@ impl<N, M, T> Iterator for IntoMatrixRows<N, M, T>
             None
         }
     }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let len = (self.end_ptr as usize - self.data.start_ptr as usize) / self.data.num_cols.as_nat();
+        (len, Some(len))
+    }
 }
 
 impl<N, M, T> Iterator for IntoMatrixRow<N, M, T> {
@@ -468,6 +482,11 @@ impl<N, M, T> Iterator for IntoMatrixRow<N, M, T> {
         } else {
             None
         }
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let len = self.end_ptr as usize - self.start_ptr as usize;
+        (len, Some(len))
     }
 }
 
@@ -493,10 +512,12 @@ pub struct IterMatrixCol<'a, N, M, T>
 }
 
 impl<'a, N, M, T> Iterator for IterMatrixCols<'a, N, M, T>
-    where M: AsNat
+    where N: AsNat + Clone,
+          M: AsNat + Clone
 {
     type Item = IterMatrixCol<'a, N, M, T>;
 
+    #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         if self.current_col < self.matrix.num_cols.as_nat() {
             self.current_col += 1;
@@ -509,6 +530,12 @@ impl<'a, N, M, T> Iterator for IterMatrixCols<'a, N, M, T>
             None
         }
     }
+
+    // #[inline]
+    // fn size_hint(&self) -> (usize, Option<usize>) {
+    //     let len = self.matrix.num_cols.as_nat() - self.current_col;
+    //     (len, Some(len))
+    // }
 }
 
 impl<'a, N, M, T> Iterator for IterMatrixCol<'a, N, M, T>
@@ -517,6 +544,7 @@ impl<'a, N, M, T> Iterator for IterMatrixCol<'a, N, M, T>
 {
     type Item = &'a T;
 
+    #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         if self.current_row < self.matrix.num_rows.as_nat() {
             self.current_row += 1;
@@ -525,6 +553,12 @@ impl<'a, N, M, T> Iterator for IterMatrixCol<'a, N, M, T>
             None
         }
     }
+
+    // #[inline]
+    // fn size_hint(&self) -> (usize, Option<usize>) {
+    //     let len = self.matrix.num_rows.as_nat() - self.current_row;
+    //     (len, Some(len))
+    // }
 }
 
 /// Iterator over mutably borrowed matrix columns.
@@ -1002,8 +1036,8 @@ mod bench {
 
     #[bench]
     fn matrix_mul(bencher: &mut Bencher) {
-        let mat1 = Matrix::<N50, N20, usize>::tabulate_auto(|row, col| row * col);
-        let mat2 = Matrix::<N20, N60, usize>::tabulate_auto(|row, col| row + col);
+        let mat1 = Matrix::<N100, N100, usize>::tabulate_auto(|row, col| row * col);
+        let mat2 = Matrix::<N100, N100, usize>::tabulate_auto(|row, col| row + col);
 
         bencher.iter(|| {
             &mat1 * &mat2
