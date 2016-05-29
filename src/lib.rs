@@ -57,7 +57,7 @@ impl<N, M, T> Matrix<N, M, T>
 
     #[inline]
     fn row_col_index(&self, row: usize, col: usize) -> usize {
-        col + self.num_cols.as_nat() * row
+        col + self.row_len() * row
     }
 
     /// Gets a reference to the value at the given row and column.

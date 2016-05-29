@@ -229,14 +229,19 @@ pub type N100 = Succ<N99>;
 mod tests {
     use super::*;
 
-    use test::Bencher;
-
     #[test]
     fn phantom_numbers() {
         assert_eq!(N0::get_nat(), 0);
         assert_eq!(N1::get_nat(), 1);
         assert_eq!(N2::get_nat(), 2);
     }
+
+}
+
+#[cfg(type_nat_benches)]
+mod benches {
+    use super::*;
+    use test::Bencher;
 
     // if the `bench_as_nat` benchmark runs slower than `bench_9`, something is
     // wrong and the value is being evaluated at run-time.
