@@ -1,40 +1,59 @@
-use std::marker::PhantomData;
+//! Type level (and pseudo-type-level) natural numbers and singletons.
 
+use std::marker::PhantomData;
+use std::ops::Deref;
+
+/// A type is `AsNat` if a value can be viewed as a natural number.
 pub trait AsNat {
+    /// Get the underlying natural number as a `usize`.
     fn as_nat(&self) -> usize;
 }
 
 impl AsNat for usize {
-    fn as_nat(&self) -> usize { *self }
+    #[inline]
+    fn as_nat(&self) -> usize {
+        *self
+    }
 }
 
+/// A type is `Sing` (singleton) if there is exactly one possible value with
+/// that type.
 pub trait Sing {
+    /// Get the singleton value of this type.
     fn get_sing() -> Self;
 }
 
-pub trait TypeNat: AsNat + Sing + Copy {
+/// `TypeNat` is essentially shorthand for `AsNat + Sing`, with an extra
+/// convenience function `get_nat`. This represents a type-level natural number.
+pub trait TypeNat: AsNat + Sing {
+    /// Get the single natural number associated with this type.
     #[inline]
     fn get_nat() -> usize {
         Self::get_sing().as_nat()
     }
 }
 
-impl<T> TypeNat for T where T: AsNat + Sing + Copy {}
+impl<T> TypeNat for T where T: AsNat + Sing {}
 
+/// Type-level representation of `0`.
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
 pub struct Zero;
 
+/// If `N` is the type-level representation of the number `n`, `Succ<N>` is the
+/// type-level representation of `n+1`.
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
 pub struct Succ<N> {
     n_marker: PhantomData<N>,
 }
 
+/// An arbitrary value tagged (at the type-level only) with some type.
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
 pub struct Tagged<Tag, Val> {
     tag_marker: PhantomData<Tag>,
     val: Val,
 }
 
+/// `Tagged` specialized with a `usize` value.
 pub type TaggedNat<Tag> = Tagged<Tag, usize>;
 
 impl AsNat for Zero {
@@ -52,11 +71,11 @@ impl Sing for Zero {
 }
 
 impl<N> AsNat for Succ<N>
-    where N: AsNat + Sing
+    where N: TypeNat
 {
     #[inline]
     fn as_nat(&self) -> usize {
-        1 + N::get_sing().as_nat()
+        1 + N::get_nat()
     }
 }
 
@@ -68,6 +87,7 @@ impl<N> Sing for Succ<N> {
 }
 
 impl<Tag, Val> Tagged<Tag, Val> {
+    #[inline]
     pub fn new(val: Val) -> Self {
         Tagged {
             tag_marker: PhantomData,
@@ -76,10 +96,30 @@ impl<Tag, Val> Tagged<Tag, Val> {
     }
 }
 
-impl<Tag, Val> AsNat for Tagged<Tag, Val> where Val: AsNat {
+impl<Tag, Val> Deref for Tagged<Tag, Val> {
+    type Target = Val;
+
+    #[inline]
+    fn deref(&self) -> &Val {
+        &self.val
+    }
+}
+
+impl<Tag, Val> AsNat for Tagged<Tag, Val>
+    where Val: AsNat
+{
     #[inline]
     fn as_nat(&self) -> usize {
         self.val.as_nat()
+    }
+}
+
+impl<Tag, Val> Sing for Tagged<Tag, Val>
+    where Val: Sing
+{
+    #[inline]
+    fn get_sing() -> Self {
+        Self::new(Val::get_sing())
     }
 }
 
