@@ -1,6 +1,5 @@
 #![feature(iter_arith)]
 #![feature(test)]
-#![recursion_limit="256"]
 
 extern crate test;
 
@@ -18,8 +17,8 @@ pub struct Matrix {
 impl Matrix
 {
     pub fn get(&self, row: usize, col: usize) -> &f64 {
-        assert!(col < self.num_cols);
-        assert!(row < self.num_rows);
+        // assert!(col < self.num_cols);
+        // assert!(row < self.num_rows);
         unsafe {
             self.get_unchecked(row, col)
         }
@@ -27,6 +26,14 @@ impl Matrix
 
     pub unsafe fn get_unchecked(&self, row: usize, col: usize) -> &f64 {
         self.data.get_unchecked(col + self.num_cols * row)
+    }
+
+    pub unsafe fn from_raw(num_rows: usize, num_cols: usize, data: Vec<f64>) -> Self {
+        Matrix {
+            num_rows: num_rows,
+            num_cols: num_cols,
+            data: data,
+        }
     }
 
     pub unsafe fn from_rows_unsafe<Rows, Row>(num_rows: usize, num_cols: usize, rows: Rows) -> Self
@@ -51,20 +58,19 @@ impl Matrix
     pub fn tabulate<F>(num_rows: usize, num_cols: usize, f: F) -> Self
         where F: Fn(usize, usize) -> f64
     {
+        let mut data = Vec::with_capacity(num_rows * num_cols);
 
-        let nrows = num_rows;
-        let ncols = num_cols;
+        for row in 0..num_rows {
+            for col in 0..num_cols {
+                data.push(f(row, col));
+            }
+        }
 
         unsafe {
-            Self::from_rows_unsafe(num_rows,
-                                   num_cols,
-                                   (0..nrows).map(|row| {
-                                       (0..ncols)
-                                           .zip(iter::repeat(row))
-                                           .map(|(col, row)| f(row, col))
-                                   }))
+            Self::from_raw(num_rows, num_cols, data)
         }
     }
+
 
     pub fn iter_rows(&self) -> std::slice::Chunks<f64> {
         self.data.chunks(self.num_cols)
@@ -74,6 +80,26 @@ impl Matrix
         IterMatrixCols {
             current_col: 0,
             matrix: self,
+        }
+    }
+
+    pub fn mul_no_iter(&self, rhs: &Matrix) -> Matrix {
+        let mut data = Vec::with_capacity(self.num_rows * rhs.num_cols);
+
+        for row in 0..self.num_rows {
+            for col in 0..rhs.num_cols {
+                let mut v = 0.0;
+
+                for (x, y) in (0..self.num_cols).zip(0..rhs.num_rows) {
+                    v += self.get(row, x) * rhs.get(y, col);
+                }
+
+                data.push(v);
+            }
+        }
+
+        unsafe {
+            Matrix::from_raw(self.num_rows, rhs.num_cols, data)
         }
     }
 }
@@ -138,6 +164,7 @@ impl<'a, 'b> Mul<&'b Matrix> for &'a Matrix
             }))
         }
     }
+
 }
 
 #[cfg(test)]
@@ -156,6 +183,20 @@ mod bench {
 
         bencher.iter(|| {
             &mat1 * &mat2
+        })
+    }
+
+    #[bench]
+    fn matrix_mul_no_iter(bencher: &mut Bencher) {
+        let s1 = 100;
+        let s2 = 100;
+        let s3 = 100;
+
+        let mat1 = Matrix::tabulate(s1, s2, |row, col| (row * col) as f64);
+        let mat2 = Matrix::tabulate(s2, s3, |row, col| (row + col) as f64);
+
+        bencher.iter(|| {
+            mat1.mul_no_iter(&mat2)
         })
     }
 }
