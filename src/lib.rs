@@ -1034,10 +1034,22 @@ mod bench {
         })
     }
 
+    #[derive(PartialEq, Eq, Clone, Copy, Debug)]
+    enum A {}
+    #[derive(PartialEq, Eq, Clone, Copy, Debug)]
+    enum B {}
+    #[derive(PartialEq, Eq, Clone, Copy, Debug)]
+    enum C {}
+
+
     #[bench]
     fn matrix_mul(bencher: &mut Bencher) {
-        let mat1 = Matrix::<N100, N100, usize>::tabulate_auto(|row, col| row * col);
-        let mat2 = Matrix::<N100, N100, usize>::tabulate_auto(|row, col| row + col);
+        let s1: TaggedNat<A> = Tagged::new(200);
+        let s2: TaggedNat<B> = Tagged::new(140);
+        let s3: TaggedNat<C> = Tagged::new(250);
+
+        let mat1 = Matrix::tabulate(s1, s2, |row, col| row * col);
+        let mat2 = Matrix::tabulate(s2, s3, |row, col| row + col);
 
         bencher.iter(|| {
             &mat1 * &mat2
